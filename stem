@@ -305,11 +305,11 @@ function stop_nodeserver(rows){
   });      
 }
 
-var source_clone_server_id;
-var target_clone_server_id;
-var target_clone_template_id;
-var templates_to_clone;
-var configuration_to_clone;
+source_clone_server_id;
+target_clone_server_id;
+target_clone_template_id;
+templates_to_clone;
+configuration_to_clone;
 
 function clone_server_post_find(rows){
   if(rows.length==0){ console.log("Unable to find that server".rainbow, program.clone.bold);return;}
