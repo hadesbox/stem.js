@@ -352,6 +352,7 @@ function clone_server_post_find(rows){
   });
 }
 
+//Function to clone a template and all its configurations
 function clone_template(template){
   if(template){
     var stmt = db.prepare("INSERT INTO template VALUES (?,?,?)");
