@@ -322,7 +322,9 @@ function clone_server_post_find(rows){
   stmt.finalize();
 
   db.get("SELECT last_insert_rowid() as last_id",function(err,rows){
+
     target_clone_server_id = rows.last_id;
+    //console.log(target_clone_server_id);
 
     db.all("SELECT rowid,* FROM template where tem_serverid=?", source_clone_server_id , function(err, rows_templates) {
       
@@ -333,7 +335,7 @@ function clone_server_post_find(rows){
       }
       db.all("SELECT rowid,* FROM configuration where conf_tempid in ("+t_ids+")" , function(err, rows_configuration) {
         configuration_to_clone = rows_configuration;
-        console.log(templates_to_clone.length,configuration_to_clone.length);
+        //console.log(templates_to_clone.length,configuration_to_clone.length);
         for(var i=0;i<templates_to_clone.length;i++){
           templates_to_clone[i].confs = new Array();
           for(var j=0;j<configuration_to_clone.length;j++){
@@ -343,8 +345,7 @@ function clone_server_post_find(rows){
           }
         }
 
-
-        //AQUI CONTINUO
+        clone_template(templates_to_clone.shift());
 
       });      
     });
@@ -352,9 +353,26 @@ function clone_server_post_find(rows){
 }
 
 function clone_template(template){
+  if(template){
+    var stmt = db.prepare("INSERT INTO template VALUES (?,?,?)");
+    //console.log(template.tem_loc, target_clone_server_id, template.tem_iscore);
+    stmt.run(template.tem_loc, target_clone_server_id, template.tem_iscore);
+    stmt.finalize();    
+    db.get("SELECT last_insert_rowid() as last_id",function(err,rows){
 
-
-
+      for(i=0;i<template.confs.length;i++){
+        //console.log(item);
+        stmt = db.prepare("INSERT INTO configuration VALUES (?,?,?)"); //conf_tempid INT, conf_param TEXT, conf_value TEXT
+        //console.log(rows.last_id, template.confs[i].conf_param, template.confs[i].conf_value);
+        stmt.run(rows.last_id, template.confs[i].conf_param, template.confs[i].conf_value);
+        stmt.finalize();        
+      }
+      clone_template(templates_to_clone.shift());
+    });  
+  }
+  else{
+    console.log("Server fully cloned!!".bold);
+  }
 }
 
 /***** END FUNCTIONS *****/
