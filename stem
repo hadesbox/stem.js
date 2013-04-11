@@ -152,7 +152,7 @@ function find_alltemplates_for_server(rows){
   else{
     console.log("\nSTRUCTURE\n".bold);
 
-    console.log("%d".green+"----".blue+" %s is %s".green,rows[0].rowid, rows[0].ser_name, rows[0].ser_state);
+    console.log("%d".green+"----".blue+" %s is %s".green,rows[0].rowid, rows[0].ser_name, (rows[0].ser_state=="STOPPED"?rows[0].ser_state.red:rows[0].ser_state.green));
     db.all("SELECT rowid,* FROM template where tem_serverid=?", [rows[0].rowid] , function(err, rows) {
       find_alltemplates_rows = rows;
       printTemplateInfo(find_alltemplates_rows.shift());
@@ -271,6 +271,7 @@ function processTemplates(item_template){
   }
 }
 
+//Function to start a server with Forever!
 function start_nodeserver(rows){
   if(rows.length==0){ console.log("Unable to find that server.".rainbow);return;}
   //if(rows[0].ser_state 0){ console.log("Unable to find that server.".rainbow);return;}
@@ -287,6 +288,8 @@ function start_nodeserver(rows){
   });      
 }
 
+
+//Function to stop a server with Forever!
 function stop_nodeserver(rows){
   if(rows.length==0){ console.log("Unable to find that server.".rainbow);return;}
   db.run("UPDATE server SET ser_state = ? WHERE rowid = ?", "STOPPED", rows[0].rowid);
@@ -300,6 +303,58 @@ function stop_nodeserver(rows){
         console.log("Server stopped succesfully".bold);
       }
   });      
+}
+
+var source_clone_server_id;
+var target_clone_server_id;
+var target_clone_template_id;
+var templates_to_clone;
+var configuration_to_clone;
+
+function clone_server_post_find(rows){
+  if(rows.length==0){ console.log("Unable to find that server".rainbow, program.clone.bold);return;}
+  //console.log(rows);
+
+  source_clone_server_id = rows[0].rowid;
+
+  var stmt = db.prepare("INSERT INTO server VALUES (?,?)");
+  stmt.run(program.args[0],"STOPPED");
+  stmt.finalize();
+
+  db.get("SELECT last_insert_rowid() as last_id",function(err,rows){
+    target_clone_server_id = rows.last_id;
+
+    db.all("SELECT rowid,* FROM template where tem_serverid=?", source_clone_server_id , function(err, rows_templates) {
+      
+      templates_to_clone = rows_templates;
+      t_ids = "";
+      for(i=0;i<templates_to_clone.length;i++){
+        t_ids+=(t_ids==""?"":",")+templates_to_clone[i].rowid;
+      }
+      db.all("SELECT rowid,* FROM configuration where conf_tempid in ("+t_ids+")" , function(err, rows_configuration) {
+        configuration_to_clone = rows_configuration;
+        console.log(templates_to_clone.length,configuration_to_clone.length);
+        for(var i=0;i<templates_to_clone.length;i++){
+          templates_to_clone[i].confs = new Array();
+          for(var j=0;j<configuration_to_clone.length;j++){
+            if(templates_to_clone[i].rowid == configuration_to_clone[j].conf_tempid){
+              templates_to_clone[i].confs.push(configuration_to_clone[j]);
+            }
+          }
+        }
+
+
+        //AQUI CONTINUO
+
+      });      
+    });
+  });
+}
+
+function clone_template(template){
+
+
+
 }
 
 /***** END FUNCTIONS *****/
@@ -319,6 +374,7 @@ program
 .option('setconf [conf_id] [value]', 'given the ID (int) of a conf, change the its value.')
 .option('applyconf [server] [conf_file]', 'Apply a configuration file to a server.')
 .option('compile [server]', 'Generate the physical NODEJS file as stem_<id>.js')
+.option('clone [source_server] [new_server]', 'Tool to fully clone a server.')
 
 .parse(process.argv);
 
@@ -367,6 +423,9 @@ else if (program.start) {
 }
 else if (program.stop) {
   find_server(program.stop, stop_nodeserver);
+}
+else if (program.clone) {
+  find_server(program.clone, clone_server_post_find);
 }
 else {
   console.log("You must speficy at least one command. Use -h for help.".rainbow)
