@@ -305,11 +305,11 @@ function stop_nodeserver(rows){
   });      
 }
 
-source_clone_server_id;
-target_clone_server_id;
-target_clone_template_id;
-templates_to_clone;
-configuration_to_clone;
+var source_clone_server_id;
+var target_clone_server_id;
+var target_clone_template_id;
+var templates_to_clone;
+var configuration_to_clone;
 
 function clone_server_post_find(rows){
   if(rows.length==0){ console.log("Unable to find that server".rainbow, program.clone.bold);return;}
@@ -339,6 +339,7 @@ function clone_server_post_find(rows){
         for(var i=0;i<templates_to_clone.length;i++){
           templates_to_clone[i].confs = new Array();
           for(var j=0;j<configuration_to_clone.length;j++){
+            console.log(i,j);
             if(templates_to_clone[i].rowid == configuration_to_clone[j].conf_tempid){
               templates_to_clone[i].confs.push(configuration_to_clone[j]);
             }
@@ -361,14 +362,20 @@ function clone_template(template){
     stmt.finalize();    
     db.get("SELECT last_insert_rowid() as last_id",function(err,rows){
 
+      target_clone_template_id = rows.last_id;
+      console.log(target_clone_template_id);
+
       for(i=0;i<template.confs.length;i++){
         //console.log(item);
-        stmt = db.prepare("INSERT INTO configuration VALUES (?,?,?)"); //conf_tempid INT, conf_param TEXT, conf_value TEXT
-        //console.log(rows.last_id, template.confs[i].conf_param, template.confs[i].conf_value);
-        stmt.run(rows.last_id, template.confs[i].conf_param, template.confs[i].conf_value);
-        stmt.finalize();        
-      }
-      clone_template(templates_to_clone.shift());
+        db.prepare("INSERT INTO configuration VALUES (?,?,?)", target_clone_template_id, template.confs[i].conf_param, template.confs[i].conf_value, function(){
+          //console.log(i,template.confs.length);
+          if(i==template.confs.length-1){
+            //console.log("calling ...");
+            //todo
+            clone_template(templates_to_clone.shift());
+          }
+        });        
+      }      
     });  
   }
   else{
