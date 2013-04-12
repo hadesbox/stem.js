@@ -406,8 +406,8 @@ function clone_configuration(config){
 program
 .version('-0.42')
 .option('list', 'Get the list of all registered servers.')
-.option('create [server] [core_template]', 'Add [server] with [core_template].')
-.option('destroy [server]', 'Remove [server] with specified name.')
+.option('create [server] [core_template]', 'Create [server] with [core_template].')
+.option('destroy [server]', 'Destroy [server] with specified name.')
 .option('add [server] [template]', 'Add the [template] to the existing [server].')
 .option('remove [server] [template]', 'Remove the specified [template] from the [server]')
 .option('describe [server]', 'Show the details of a particular [server].')
