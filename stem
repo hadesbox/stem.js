@@ -339,15 +339,13 @@ function clone_server_post_find(rows){
         for(var i=0;i<templates_to_clone.length;i++){
           templates_to_clone[i].confs = new Array();
           for(var j=0;j<configuration_to_clone.length;j++){
-            console.log(i,j);
+            //console.log(i,j);
             if(templates_to_clone[i].rowid == configuration_to_clone[j].conf_tempid){
               templates_to_clone[i].confs.push(configuration_to_clone[j]);
             }
           }
         }
-
         clone_template(templates_to_clone.shift());
-
       });      
     });
   });
@@ -361,26 +359,28 @@ function clone_template(template){
     stmt.run(template.tem_loc, target_clone_server_id, template.tem_iscore);
     stmt.finalize();    
     db.get("SELECT last_insert_rowid() as last_id",function(err,rows){
-
       target_clone_template_id = rows.last_id;
-      console.log(target_clone_template_id);
-
-      for(i=0;i<template.confs.length;i++){
-        //console.log(item);
-        db.prepare("INSERT INTO configuration VALUES (?,?,?)", target_clone_template_id, template.confs[i].conf_param, template.confs[i].conf_value, function(){
-          //console.log(i,template.confs.length);
-          if(i==template.confs.length-1){
-            //console.log("calling ...");
-            //todo
-            clone_template(templates_to_clone.shift());
-          }
-        });        
-      }      
+      //console.log(target_clone_template_id, template.confs);
+      configuration_to_clone = template.confs;
+      clone_configuration(configuration_to_clone.shift());
     });  
   }
   else{
     console.log("Server fully cloned!!".bold);
   }
+}
+
+function clone_configuration(config){
+  //console.log(config);
+  db.run("INSERT INTO configuration VALUES (?,?,?)", target_clone_template_id, config.conf_param, config.conf_value, function(){
+    //console.log("configuration_to_clone.length="+configuration_to_clone.length);
+    if(configuration_to_clone.length==0){
+      clone_template(templates_to_clone.shift());
+    }
+    else{
+      clone_configuration(configuration_to_clone.shift());
+    }
+  });        
 }
 
 /***** END FUNCTIONS *****/
