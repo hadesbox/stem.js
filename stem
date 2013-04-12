@@ -25,35 +25,52 @@ db.serialize(function() {
 /***** FUNCTIONS *****/
 
 //Post callback function when adding a server
-function sadd_post_find_server(rows) {    
+function create_post_find_server(rows) {    
   if(rows.length==0){
     var stmt = db.prepare("INSERT INTO server VALUES (?,?)");
-    stmt.run(program.sadd,"STOPPED");
+    stmt.run(program.create,"STOPPED");
     stmt.finalize();
 
     db.get("SELECT last_insert_rowid() as last_id",function(err,rows){
-      console.log("Added server <%s> with id <%d>".bold, program.sadd.green, rows.last_id);
-      tadd_post_find_server(rows.last_id,"Y");
+      console.log("Added server <%s> with id <%d>".bold, program.create.green, rows.last_id);
+      add_post_find_server(rows.last_id,"Y");
     });
     
   }
   else{
-    console.log("A server with name <".rainbow + program.sadd.bold + "> already exists in the db.".rainbow);
+    console.log("A server with name <".rainbow + program.create.bold + "> already exists in the db.".rainbow);
     db.close();
   }  
 }
 
 //Post callback function when removing a server
-function sremove_post_find_server(rows) {    
+function destroy_post_find_server(rows) {    
   if(rows.length==0){
-    console.log("I couldn\'t find any server with name <".rainbow+program.sremove.bold+">".rainbow);
+    console.log("I couldn\'t find any server with name <".rainbow+program.destroy.bold+">".rainbow);
   }
   else{
-    db.run("DELETE FROM template WHERE tem_serverid = ?", rows[0].rowid);
-    db.run("DELETE FROM server WHERE rowid = ?", rows[0].rowid);
-    console.log('Server <%s> and all its templates were deleted'.bold,program.sremove.green);    
-  }
-  db.close();      
+
+    db.all("SELECT rowid FROM template WHERE tem_serverid = ?", rows[0].rowid, function(err,items){
+      items.forEach(function(item){
+        db.run("DELETE FROM configuration where conf_tempid = ? ", item.rowid);
+        db.run("DELETE FROM template WHERE rowid = ?", item.rowid);
+      });
+    });
+
+    db.run("DELETE FROM server WHERE rowid = ?", rows[0].rowid, function(){
+      console.log('Server <%s> and all its templates were deleted'.bold,program.destroy.green);
+    });
+
+/*    db.run("DELETE FROM configuration where conf_tempid in (SELECT rowid FROM template WHERE tem_serverid = ", rows[0].rowid, function(){
+      db.run("DELETE FROM template WHERE tem_serverid = ?", rows[0].rowid, function(){
+        db.run("DELETE FROM server WHERE rowid = ?", rows[0].rowid, function(){
+          console.log('Server <%s> and all its templates were deleted'.bold,program.destroy.green);    
+          db.close();
+        });
+      });
+    });  
+    */  
+  }  
 }
 
 //Function to find an especific server which chains to next_function and last_function.
@@ -82,7 +99,7 @@ function find_all_servers(){
   db.close();
 }
 
-//Function for finding a template , then it continues with tadd_post_find_server or tremove_post_find_server depending on the next_function
+//Function for finding a template , then it continues with add_post_find_server or remove_post_find_server depending on the next_function
 function find_template_for_server(rows, next_function){
   //console.log(arguments);
   if(rows.length==0){
@@ -95,13 +112,13 @@ function find_template_for_server(rows, next_function){
 }
 
 //Function that add the template to that server
-function tadd_post_find_server(server_id, is_core) {
+function add_post_find_server(server_id, is_core) {
   if(!is_core) is_core="N";
   var stmt = db.prepare("INSERT INTO template VALUES (?,?,?)");
   stmt.run(program.args[0], server_id, is_core);
   stmt.finalize();    
   //console.log(arguments);
-  console.log("Added template <%s> to server <%s> with id <%s>".bold, program.args[0].green, (""+server_id).green);
+  console.log("Added template <%s> to server <%s>".bold, program.args[0].green, (""+server_id).green);
   fs.readFile(program.args[0], 'utf-8', function (error, data) {
     var patt=/<!.*!>/g;
     res = data.match(patt)
@@ -133,11 +150,10 @@ function tadd_post_find_server(server_id, is_core) {
 }
 
 //Function that removes the template from a server
-function tremove_post_find_server(server_id) {    
-  var stmt = db.prepare("DELETE FROM template where rowid = ?"); //tem_loc tem_serverid
-  stmt.run(program.args[0]);
-  stmt.finalize();
-  console.log('Removed template <%s> to server <%s>'.bold, program.args[0].green, program.tremove.green);
+function remove_post_find_server(server_id) {    
+  db.run("DELETE FROM configuration where conf_tempid = ?",program.args[0]);  
+  db.run("DELETE FROM template where rowid = ?",program.args[0]);  
+  console.log('Removed template <%s> from server <%s>'.bold, program.args[0].green, program.remove.green);
   db.close();
 }
 
@@ -390,10 +406,10 @@ function clone_configuration(config){
 program
 .version('-0.42')
 .option('list', 'Get the list of all registered servers.')
-.option('sadd [server] [core_template]', 'Add [server] with [core_template].')
-.option('sremove [server]', 'Remove [server] with specified name.')
-.option('tadd [server] [template]', 'Add the [template] to the existing [server].')
-.option('tremove [server] [template]', 'Remove the specified [template] from the [server]')
+.option('create [server] [core_template]', 'Add [server] with [core_template].')
+.option('destroy [server]', 'Remove [server] with specified name.')
+.option('add [server] [template]', 'Add the [template] to the existing [server].')
+.option('remove [server] [template]', 'Remove the specified [template] from the [server]')
 .option('describe [server]', 'Show the details of a particular [server].')
 .option('stop [server]', 'Stop an active running server')
 .option('start [server]', 'Start a server')
@@ -404,23 +420,23 @@ program
 
 .parse(process.argv);
 
-if (program.sadd){
+if (program.create){
   if(!program.args[0]){console.log("You must specify a server base template.".rainbow);return};
-  find_server(program.sadd, sadd_post_find_server);
+  find_server(program.create, create_post_find_server);
 }
-else if (program.sremove){
-  find_server(program.sremove, sremove_post_find_server);
+else if (program.destroy){
+  find_server(program.destroy, destroy_post_find_server);
 }
 else if (program.list){
   find_all_servers();
 }
-else if (program.tadd){
+else if (program.add){
   if(!program.args[0]){console.log("You must specify a template to add.".rainbow);return};
-  find_server(program.tadd, find_template_for_server, tadd_post_find_server);
+  find_server(program.add, find_template_for_server, add_post_find_server);
 }
-else if (program.tremove){
+else if (program.remove){
   if(!program.args[0]){console.log("You must specify a template to remove.".rainbow);return};
-  find_server(program.tremove, find_template_for_server, tremove_post_find_server);
+  find_server(program.remove, find_template_for_server, remove_post_find_server);
 }
 else if (program.describe){
   find_server(program.describe, find_alltemplates_for_server);  
